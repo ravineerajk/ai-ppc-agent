@@ -5,36 +5,34 @@ import openai
 import os
 from dotenv import load_dotenv
 
-# Load env vars (used locally only; not needed on Streamlit Cloud)
+# Load env vars (used locally)
 load_dotenv()
-openai.api_key = openai_api_key  # already loaded from secrets or env
+openai.api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
 
-# Streamlit page setup
 st.set_page_config(page_title="AI PPC Agent", layout="wide")
 st.title("🤖 AI PPC Campaign Assistant")
 
-# Google Sheet names
+# Google Sheet Info
 sheet_name = "CampaignReport"
 worksheet_name = "Sheet1"
 
-# Load and display data
+# Check OpenAI key
 if not openai.api_key:
-    st.error("❌ OpenAI API key not found in environment or Streamlit secrets.")
+    st.error("❌ OpenAI API key not found.")
 else:
     try:
         df = read_google_sheet(sheet_name, worksheet_name)
         st.success(f"✅ Loaded {len(df)} rows from '{sheet_name}' → '{worksheet_name}'")
 
-        # --- Filter UI ---
+        # --- Filters ---
         st.subheader("🔍 Filter Data")
-
         cat_cols = df.select_dtypes(include=['object']).columns.tolist()
         num_cols = df.select_dtypes(include='number').columns.tolist()
 
         if cat_cols:
-            selected_val = st.selectbox(f"Filter by {cat_cols[0]}:", ['All'] + df[cat_cols[0]].dropna().unique().tolist())
-            if selected_val != 'All':
-                df = df[df[cat_cols[0]] == selected_val]
+            selected = st.selectbox(f"Filter by {cat_cols[0]}:", ['All'] + df[cat_cols[0]].dropna().unique().tolist())
+            if selected != 'All':
+                df = df[df[cat_cols[0]] == selected]
 
         if num_cols:
             for col in num_cols[:2]:
@@ -42,16 +40,15 @@ else:
                 selected_range = st.slider(f"{col} range", min_val, max_val, (min_val, max_val))
                 df = df[(df[col] >= selected_range[0]) & (df[col] <= selected_range[1])]
 
-        # --- Display table ---
         st.dataframe(df, use_container_width=True)
 
         # --- GPT Analysis ---
         st.subheader("🧠 AI Analysis")
 
         if st.button("Analyze with GPT-4"):
-    st.info("Analyzing... please wait ⏳")
+            st.info("Analyzing... please wait ⏳")
 
-    prompt = f"""
+            prompt = f"""
 You are a senior PPC expert. Based on this Google Ads campaign data, give smart recommendations.
 
 Please cover:
@@ -63,19 +60,22 @@ Please cover:
 Here is the data (first 15 rows):
 
 {df.head(15).to_string(index=False)}
-    """
+            """
 
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # change to "gpt-4" if you're sure it's enabled
-            messages=[
-                {"role": "system", "content": "You are a world-class PPC strategist."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        suggestion = response.choices[0].message.content
-        st.markdown("### 💡 GPT Suggestions")
-        st.write(suggestion)
+            try:
+                response = openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo",  # or gpt-4 if you have access
+                    messages=[
+                        {"role": "system", "content": "You are a world-class PPC strategist."},
+                        {"role": "user", "content": prompt}
+                    ]
+                )
+                suggestion = response.choices[0].message.content
+                st.markdown("### 💡 GPT Suggestions")
+                st.write(suggestion)
+
+            except Exception as e:
+                st.error(f"Error calling GPT: {type(e).__name__} - {e}")
 
     except Exception as e:
-        st.error(f"Error calling GPT: {type(e).__name__} - {e}")
+        st.error(f"Error loading data: {type(e).__name__} - {e}")
