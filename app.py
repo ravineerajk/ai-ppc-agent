@@ -1,32 +1,31 @@
 import streamlit as st
 from read_sheet import read_google_sheet
 import pandas as pd
+import openai
 import os
 from dotenv import load_dotenv
-from openai import OpenAI
 
-# Load environment variables
+# Load env vars (used locally only; not needed on Streamlit Cloud)
 load_dotenv()
-openai_api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
 
-# Set Streamlit page config
+# Streamlit page setup
 st.set_page_config(page_title="AI PPC Agent", layout="wide")
 st.title("🤖 AI PPC Campaign Assistant")
 
-# Sheet details (fixed for now)
+# Google Sheet names
 sheet_name = "CampaignReport"
 worksheet_name = "Sheet1"
 
-# Check if API key and sheet names are present
-if not openai_api_key:
-    st.error("OpenAI API key not found. Make sure it's set in your `.env` file.")
+# Load and display data
+if not openai.api_key:
+    st.error("❌ OpenAI API key not found in environment or Streamlit secrets.")
 else:
     try:
-        # Load Google Sheet data
         df = read_google_sheet(sheet_name, worksheet_name)
         st.success(f"✅ Loaded {len(df)} rows from '{sheet_name}' → '{worksheet_name}'")
 
-        # --- Filter Section ---
+        # --- Filter UI ---
         st.subheader("🔍 Filter Data")
 
         cat_cols = df.select_dtypes(include=['object']).columns.tolist()
@@ -38,21 +37,19 @@ else:
                 df = df[df[cat_cols[0]] == selected_val]
 
         if num_cols:
-            for col in num_cols[:2]:  # Show sliders for first 2 numeric columns
+            for col in num_cols[:2]:
                 min_val, max_val = int(df[col].min()), int(df[col].max())
                 selected_range = st.slider(f"{col} range", min_val, max_val, (min_val, max_val))
                 df = df[(df[col] >= selected_range[0]) & (df[col] <= selected_range[1])]
 
-        # --- Display Data ---
+        # --- Display table ---
         st.dataframe(df, use_container_width=True)
 
-        # --- GPT-4 Analysis ---
+        # --- GPT Analysis ---
         st.subheader("🧠 AI Analysis")
 
         if st.button("Analyze with GPT-4"):
             st.info("Analyzing... please wait ⏳")
-
-            client = OpenAI(api_key=openai_api_key)
 
             prompt = f"""
 You are a senior PPC expert. Based on this Google Ads campaign data, give smart recommendations.
@@ -69,10 +66,10 @@ Here is the data (first 15 rows):
             """
 
             try:
-                response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
+                response = openai.chat.completions.create(
+                    model="gpt-3.5-turbo",  # Change to gpt-4 if available
                     messages=[
-                        {"role": "system", "content": "You're a world-class PPC strategist."},
+                        {"role": "system", "content": "You are a world-class PPC strategist."},
                         {"role": "user", "content": prompt}
                     ]
                 )
@@ -81,7 +78,7 @@ Here is the data (first 15 rows):
                 st.write(suggestion)
 
             except Exception as e:
-                st.error(f"Error calling GPT: {e}")
+                st.error(f"Error calling GPT: {type(e).__name__} - {e}")
 
     except Exception as e:
         st.error(f"Error loading data: {type(e).__name__} - {e}")
