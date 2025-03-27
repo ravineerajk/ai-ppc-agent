@@ -5,26 +5,31 @@ import openai
 import os
 from dotenv import load_dotenv
 
-# Load env vars (used locally)
+# Load environment variables (for local dev)
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+openai_api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
 
+# Initialize OpenAI client (latest SDK format)
+client = openai.OpenAI(api_key=openai_api_key)
+
+# Streamlit app config
 st.set_page_config(page_title="AI PPC Agent", layout="wide")
 st.title("🤖 AI PPC Campaign Assistant")
 
-# Google Sheet Info
+# Sheet config
 sheet_name = "CampaignReport"
 worksheet_name = "Sheet1"
 
-# Check OpenAI key
-if not openai.api_key:
-    st.error("❌ OpenAI API key not found.")
+# Verify API key
+if not openai_api_key:
+    st.error("❌ OpenAI API key not found in environment or Streamlit secrets.")
 else:
     try:
+        # Load sheet data
         df = read_google_sheet(sheet_name, worksheet_name)
         st.success(f"✅ Loaded {len(df)} rows from '{sheet_name}' → '{worksheet_name}'")
 
-        # --- Filters ---
+        # --- Filter UI ---
         st.subheader("🔍 Filter Data")
         cat_cols = df.select_dtypes(include=['object']).columns.tolist()
         num_cols = df.select_dtypes(include='number').columns.tolist()
@@ -42,7 +47,7 @@ else:
 
         st.dataframe(df, use_container_width=True)
 
-        # --- GPT Analysis ---
+        # --- GPT-4 Analysis ---
         st.subheader("🧠 AI Analysis")
 
         if st.button("Analyze with GPT-4"):
@@ -63,8 +68,8 @@ Here is the data (first 15 rows):
             """
 
             try:
-                response = openai.ChatCompletion.create(
-                    model="gpt-3.5-turbo",  # or gpt-4 if you have access
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",  # or "gpt-4" if available
                     messages=[
                         {"role": "system", "content": "You are a world-class PPC strategist."},
                         {"role": "user", "content": prompt}
