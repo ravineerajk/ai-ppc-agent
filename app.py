@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 # Load env vars (used locally only; not needed on Streamlit Cloud)
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+openai.api_key = openai_api_key  # already loaded from secrets or env
 
 # Streamlit page setup
 st.set_page_config(page_title="AI PPC Agent", layout="wide")
@@ -49,9 +49,9 @@ else:
         st.subheader("🧠 AI Analysis")
 
         if st.button("Analyze with GPT-4"):
-            st.info("Analyzing... please wait ⏳")
+    st.info("Analyzing... please wait ⏳")
 
-            prompt = f"""
+    prompt = f"""
 You are a senior PPC expert. Based on this Google Ads campaign data, give smart recommendations.
 
 Please cover:
@@ -63,22 +63,19 @@ Please cover:
 Here is the data (first 15 rows):
 
 {df.head(15).to_string(index=False)}
-            """
+    """
 
-            try:
-                response = openai.chat.completions.create(
-                    model="gpt-3.5-turbo",  # Change to gpt-4 if available
-                    messages=[
-                        {"role": "system", "content": "You are a world-class PPC strategist."},
-                        {"role": "user", "content": prompt}
-                    ]
-                )
-                suggestion = response.choices[0].message.content
-                st.markdown("### 💡 GPT Suggestions")
-                st.write(suggestion)
-
-            except Exception as e:
-                st.error(f"Error calling GPT: {type(e).__name__} - {e}")
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # change to "gpt-4" if you're sure it's enabled
+            messages=[
+                {"role": "system", "content": "You are a world-class PPC strategist."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        suggestion = response.choices[0].message.content
+        st.markdown("### 💡 GPT Suggestions")
+        st.write(suggestion)
 
     except Exception as e:
-        st.error(f"Error loading data: {type(e).__name__} - {e}")
+        st.error(f"Error calling GPT: {type(e).__name__} - {e}")
